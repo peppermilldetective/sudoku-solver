@@ -1,17 +1,4 @@
-// Denotes what box a particular cell is in.
-const _BOX_INDICES: [i8; 81] = [
-     1, 1, 1,  2, 2, 2,  3, 3, 3,
-     1, 1, 1,  2, 2, 2,  3, 3, 3,
-     1, 1, 1,  2, 2, 2,  3, 3, 3,
-
-     4, 4, 4,  5, 5, 5,  6, 6, 6,
-     4, 4, 4,  5, 5, 5,  6, 6, 6,
-     4, 4, 4,  5, 5, 5,  6, 6, 6,
-
-     7, 7, 7,  8, 8, 8,  9, 9, 9,
-     7, 7, 7,  8, 8, 8,  9, 9, 9,
-     7, 7, 7,  8, 8, 8,  9, 9, 9,
-];
+use std::time::Instant;
 
 // Shows which indices are in contention with which other indices.
 const CONTENTION_INDICES: [[i8; 20]; 81] = [
@@ -101,6 +88,21 @@ const CONTENTION_INDICES: [[i8; 20]; 81] = [
 // This function was used to auto-generate the 81x20 array of contention indices above.
 fn _generate_contention_indices()
 {
+    // Denotes what box a particular cell is in.
+    let box_indices: [i8; 81] = [
+        1, 1, 1,  2, 2, 2,  3, 3, 3,
+        1, 1, 1,  2, 2, 2,  3, 3, 3,
+        1, 1, 1,  2, 2, 2,  3, 3, 3,
+
+        4, 4, 4,  5, 5, 5,  6, 6, 6,
+        4, 4, 4,  5, 5, 5,  6, 6, 6,
+        4, 4, 4,  5, 5, 5,  6, 6, 6,
+
+        7, 7, 7,  8, 8, 8,  9, 9, 9,
+        7, 7, 7,  8, 8, 8,  9, 9, 9,
+        7, 7, 7,  8, 8, 8,  9, 9, 9,
+    ];
+
     let thing: Vec<Vec<i8>> = (0..81)
         .map(|i: i8| {
             let row_index: i8 = i - (i % 9);
@@ -108,7 +110,7 @@ fn _generate_contention_indices()
 
             let mut row_indices: Vec<i8> = (row_index..row_index+9).filter(|&v| v != i).collect();
             let mut column_indices: Vec<i8> = (column_index..81).step_by(9).take(9).filter(|&v| v != i).collect();
-            let mut box_indices: Vec<i8> = (0..81).filter(|&v| _BOX_INDICES[v as usize] == _BOX_INDICES[i as usize]).filter(|&v| v != i).collect();
+            let mut box_indices: Vec<i8> = (0..81).filter(|&v| box_indices[v as usize] == box_indices[i as usize]).filter(|&v| v != i).collect();
 
             let mut indices = vec![];
             indices.append(&mut row_indices);
@@ -273,7 +275,7 @@ fn get_available_at_index(p: &[i8; 81], i: usize) -> Vec<i8>
 fn main()
 {
     // TODO: Replace with some form of input (file might be best).
-    let _puzzle: [i8; 81] = [
+    let puzzle: [i8; 81] = [
         2, 0, 0,  1, 0, 0,  0, 0, 6,
         8, 0, 0,  0, 6, 0,  9, 0, 4,
         0, 9, 0,  5, 0, 8,  0, 2, 0,
@@ -287,7 +289,7 @@ fn main()
         1, 0, 0,  0, 0, 2,  0, 0, 9,
     ];
 
-    let puzzle: [i8; 81] = [
+    let _puzzle: [i8; 81] = [
         0, 0, 6,  0, 4, 9,  3, 0, 0,
         0, 9, 0,  8, 0, 0,  5, 1, 4,
         0, 0, 0,  0, 1, 0,  0, 0, 0,
@@ -304,7 +306,10 @@ fn main()
     println!("Input puzzle:\n");
     print_puzzle(puzzle);
 
+    let timer = Instant::now();
     let solutions: Vec<[i8; 81]> = solve_puzzle(puzzle);
+    let elapsed = timer.elapsed();
+    println!("\nTime taken to solve:\n\t{} seconds\n\t{} milliseconds\n\t{} nanoseconds\n", elapsed.as_secs(), elapsed.as_millis(), elapsed.as_nanos());
 
     if solutions.len() == 0
     {
