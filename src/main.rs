@@ -1,7 +1,5 @@
-use ndarray::{Array2, arr2};
-
 // Denotes what box a particular cell is in.
-const _BOX_INDICES: [i32; 81] = [
+const _BOX_INDICES: [i8; 81] = [
      1, 1, 1,  2, 2, 2,  3, 3, 3,
      1, 1, 1,  2, 2, 2,  3, 3, 3,
      1, 1, 1,  2, 2, 2,  3, 3, 3,
@@ -16,7 +14,7 @@ const _BOX_INDICES: [i32; 81] = [
 ];
 
 // Shows which indices are in contention with which other indices.
-const _CONTENTION_INDICES: [[i8; 20]; 81] = [
+const CONTENTION_INDICES: [[i8; 20]; 81] = [
     [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 18, 19, 20, 27, 36, 45, 54, 63, 72 ],
     [ 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 18, 19, 20, 28, 37, 46, 55, 64, 73 ],
     [ 0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 18, 19, 20, 29, 38, 47, 56, 65, 74 ],
@@ -134,45 +132,148 @@ fn _generate_contention_indices()
     }
 }
 
-fn solve_puzzle(p: [i32; 81]) -> Vec<[i32; 81]>
+fn solve_puzzle(puzzle: [i8; 81]) -> Vec<[i8; 81]>
 {
-    let solutions: Vec<[i32; 81]> = vec![];
+    let mut solution_base: [i8; 81] = puzzle.clone();
 
-    let contention_map = create_contention_map(p);
+    let mut available = get_available(&puzzle);
 
-    solutions
-}
+    let mut only_one: Vec<(usize, i8)> =
+        available.iter()
+            .filter(|(_, v)| v.len() == 1)
+            .map(|(i, v)| (*i, v[0]))
+            .collect();
 
-fn create_contention_map(p: [i32; 81]) -> [Vec<i32>; 81]
-{
-    let contention_map: [Vec<i32>; 81] = [
-        vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![],
-        vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![],
-        vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![],
-        vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![],
-        vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![],
-        vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![],
-        vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![],
-        vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![],
-        vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![],
-    ];
-
-    let empty_spots = p.iter()
-        .enumerate()
-        .filter(|(_, &v)| v == 0);
-    
-    for (i, v) in empty_spots
+    while only_one.len() > 0
     {
+        for (i, v) in only_one
+        {
+            solution_base[i] = v;
+        }
 
+        available = get_available(&solution_base);
+
+        only_one =
+            available.iter()
+                .filter(|(_, v)| v.len() == 1)
+                .map(|(i, v)| (*i, v[0]))
+                .collect();
     }
 
-    contention_map
+    if !solution_base.contains(&0)
+    {
+        return vec![solution_base];
+    }
+    else
+    {
+        let num_open_spots = solution_base.iter().filter(|&&v| v == 0).collect::<Vec<&i8>>().len();
+        let num_steps = num_open_spots + 1;
+        let mut steps: Vec<Vec<[i8; 81]>> = Vec::with_capacity(num_steps);
+            
+        steps.push(vec![solution_base]);
+
+        for i in 1..num_steps
+        {
+            // for each puzzle in the prior step, get the first open spot, generate all available numbers, and generate
+            // new puzzles with the first open spot taken by each available number. After the puzzles are generated,
+            // filter out the ones that have open spots with no available numbers.
+            
+            let adjusted_puzzles = steps[i - 1]
+                .iter()
+                .map(|p| {
+                    let first_available_index =
+                        p.iter().enumerate()
+                            .filter(|(_, &v)| v == 0)
+                            .map(|(i, _)| i)
+                            .next()
+                            .unwrap();
+                    
+                    let available_numbers = get_available_at_index(p, first_available_index);
+                    
+                    available_numbers.iter()
+                        .map(|&v| {
+                            let mut cloned_puzzle = p.clone();
+                            cloned_puzzle[first_available_index] = v;
+                            cloned_puzzle
+                        })
+                        .collect::<Vec<[i8; 81]>>()
+                })
+                .flatten();
+                
+            let solvable: Vec<[i8; 81]> =
+                adjusted_puzzles
+                    .filter(|p| {
+                        !get_available(p)
+                            .iter()
+                            .any(|(_, nums)| nums.len() == 0)
+                    })
+                    .collect();
+            
+            steps.push(solvable);
+        }
+
+        steps[steps.len() - 1].clone()
+    }
+}
+
+/// Gets the available numbers in each index. Returns a vector of tuples where the first element is
+/// the index in the original puzzle and the second element is a vector of available numbers.
+fn get_available(p: &[i8; 81]) -> Vec<(usize, Vec<i8>)>
+{
+    let empty_spots: Vec<(usize, i8)> = p.iter().enumerate().filter(|(_, &v)| v == 0).map(|(i, v)| (i, *v)).collect();
+    let non_empty_spots: Vec<(usize, i8)> = p.iter().enumerate().filter(|(_, &v)| v != 0).map(|(i, v)| (i, *v)).collect();
+
+    let available_numbers: Vec<(usize, Vec<i8>)> =
+        empty_spots
+            .iter()
+            .map(|(i, _)| {
+                let mut contended_numbers =
+                    non_empty_spots
+                        .iter()
+                        .filter(|(j, _)| CONTENTION_INDICES[*i].contains(&(*j as i8)))
+                        .map(|(_, v)| *v)
+                        .collect::<Vec<i8>>();
+
+                contended_numbers.sort();
+                contended_numbers.dedup();
+
+                let open_numbers = (1..10).filter(|v| !contended_numbers.contains(v)).collect::<Vec<i8>>();
+
+                (*i, open_numbers)
+            })
+            .collect();
+
+    available_numbers
+}
+
+/// Gets all available numbers for a puzzle at a given index.
+fn get_available_at_index(p: &[i8; 81], i: usize) -> Vec<i8>
+{
+    let non_empty_spots: Vec<(usize, i8)> =
+        p
+            .iter()
+            .enumerate()
+            .filter(|(_, &v)| v != 0)
+            .map(|(i, v)| (i, *v))
+            .collect();
+
+    let mut contended_numbers =
+        non_empty_spots
+            .iter()
+            .filter(|(j, _)| CONTENTION_INDICES[i].contains(&(*j as i8)))
+            .map(|(_, v)| *v)
+            .collect::<Vec<i8>>();
+
+    contended_numbers.sort();
+    contended_numbers.dedup();
+
+    (1..10).filter(|v| !contended_numbers.contains(v)).collect::<Vec<i8>>()
 }
 
 fn main()
 {
     // TODO: Replace with some form of input (file might be best).
-    let puzzle: [i32; 81] = [
+    let _puzzle: [i8; 81] = [
         2, 0, 0,  1, 0, 0,  0, 0, 6,
         8, 0, 0,  0, 6, 0,  9, 0, 4,
         0, 9, 0,  5, 0, 8,  0, 2, 0,
@@ -186,10 +287,24 @@ fn main()
         1, 0, 0,  0, 0, 2,  0, 0, 9,
     ];
 
+    let puzzle: [i8; 81] = [
+        0, 0, 6,  0, 4, 9,  3, 0, 0,
+        0, 9, 0,  8, 0, 0,  5, 1, 4,
+        0, 0, 0,  0, 1, 0,  0, 0, 0,
+
+        8, 0, 4,  0, 0, 2,  0, 0, 1,
+        0, 7, 5,  0, 8, 1,  2, 3, 0,
+        3, 0, 1,  0, 5, 6,  0, 0, 8,
+
+        0, 0, 0,  0, 2, 0,  0, 0, 5,
+        0, 5, 9,  0, 0, 0,  0, 0, 0,
+        1, 0, 3,  6, 9, 5,  4, 0, 0,
+    ];
+
     println!("Input puzzle:\n");
     print_puzzle(puzzle);
 
-    let solutions: Vec<[i32; 81]> = solve_puzzle(puzzle);
+    let solutions: Vec<[i8; 81]> = solve_puzzle(puzzle);
 
     if solutions.len() == 0
     {
@@ -206,7 +321,7 @@ fn main()
     }
 }
 
-fn print_puzzle(p: [i32; 81])
+fn print_puzzle(p: [i8; 81])
 {
     println!("◇-----------------◇");
     println!("|{} {} {}|{} {} {}|{} {} {}|", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
